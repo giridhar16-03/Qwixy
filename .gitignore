@@ -27,3 +27,5 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# NOTE: `docs/` intentionally kept in repo for GitHub Pages deployment. Do not add docs here.

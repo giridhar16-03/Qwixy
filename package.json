@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:gh": "cross-env VITE_BASE=/Qwixy/ vite build",
+    "copy-docs": "node ./scripts/copy-dist-to-docs.js",
+    "deploy:gh": "npm run build:gh && npm run copy-docs"
   },
   "dependencies": {
     "@react-oauth/google": "^0.13.5",
@@ -32,6 +35,7 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.5.0",
     "tailwindcss": "^4.2.4",
-    "vite": "^8.0.10"
+    "vite": "^8.0.10",
+    "cross-env": "^7.0.3"
   }
 }
