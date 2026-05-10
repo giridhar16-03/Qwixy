@@ -31,6 +31,7 @@ export default ({ mode }) => {
   }
 
   return defineConfig({
+    base: '/Qwixy/',
     plugins: [react(), tailwindcss()],
     server: {
       port: Number(env.VITE_PORT) || 5173,
