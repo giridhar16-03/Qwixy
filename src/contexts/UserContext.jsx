@@ -767,11 +767,13 @@ export function UserProvider({ children }) {
     const apiKey = import.meta.env.VITE_QWIXY_API_KEY || ''
     const model = import.meta.env.VITE_QWIXY_MODEL || 'llama-3.3-70b-versatile'
 
-    // In dev, if a proxy is configured in vite, use the local proxy endpoint to avoid CORS
-    const useProxy = import.meta.env.DEV && !!import.meta.env.VITE_QWIXY_API_URL
-    const fetchUrl = useProxy ? '/api/qwixy' : apiUrl
+    // Determine endpoint: in production we call our serverless proxy at /api/qwixy
+    const isProd = import.meta.env.PROD
+    const useDevProxy = import.meta.env.DEV && !!import.meta.env.VITE_QWIXY_API_URL
+    const fetchUrl = isProd || useDevProxy ? '/api/qwixy' : apiUrl
 
-    if (!apiUrl || !apiKey) {
+    // If no API configured for non-proxy mode, show fallback
+    if (!fetchUrl || (!isProd && !apiUrl)) {
       console.warn('⚠️ Qwixy API not configured; returning local fallback reply for faster testing')
       const assistantContent = `Qwixy is not configured locally. I can still see ${userPlans.length} saved task(s), but to get live task-aware suggestions, set VITE_QWIXY_API_URL and VITE_QWIXY_API_KEY in your .env file.`
       // Try to save the placeholder reply so the UI shows history when possible, but ignore DB errors
@@ -798,12 +800,13 @@ export function UserProvider({ children }) {
       let attempt = 0
       while (attempt <= maxRetries) {
         try {
+          // If calling the direct API URL (not proxy), include Authorization header.
+          const headers = { 'Content-Type': 'application/json' }
+          if (fetchUrl === apiUrl && apiKey) headers.Authorization = `Bearer ${apiKey}`
+
           res = await fetch(fetchUrl, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${apiKey}`,
-            },
+            headers,
             body: JSON.stringify(body),
           })
         } catch (fetchErr) {
