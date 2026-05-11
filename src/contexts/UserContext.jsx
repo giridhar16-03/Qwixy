@@ -109,7 +109,24 @@ export function UserProvider({ children }) {
           console.log('🔄 Session found, loading user data for ID:', session.user.id)
           setUser(session.user)
           
-          // CHECK profile existence BEFORE marking loading done, to avoid redirect race
+          // Load data BEFORE showing dashboard (blocking wait) - WITH TIMEOUT
+          try {
+            const loadPromise = Promise.all([
+              ensureUserProfile(session.user),
+              loadUserPlans(session.user.id),
+            ])
+            // Max 5 second timeout for data loading
+            const timeoutPromise = new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('Data load timeout')), 5000)
+            )
+            await Promise.race([loadPromise, timeoutPromise])
+            console.log('✅ All data loaded successfully')
+          } catch (err) {
+            console.warn('⚠️ Data load error/timeout (continuing):', err?.message)
+            // Continue anyway - don't block render
+          }
+
+          // Check profile existence for pending flag (ASYNC, doesn't block)
           try {
             const { data: profileData, error: pErr } = await supabase
               .from('profiles')
@@ -125,22 +142,11 @@ export function UserProvider({ children }) {
               console.log('✅ Profile exists for user ID:', session.user.id)
             }
           } catch (e) {
-            console.debug('Could not check profile existence:', e)
+            console.debug('Could not check profile existence:', e?.message)
             sessionStorage.removeItem('pending_profile_creation')
           }
           
-          // Load data BEFORE showing dashboard (blocking wait)
-          try {
-            await Promise.all([
-              ensureUserProfile(session.user),
-              loadUserPlans(session.user.id),
-            ])
-            console.log('✅ All data loaded successfully')
-          } catch (err) {
-            console.error('Error loading data:', err)
-          }
-          
-          setLoading(false) // NOW mark loading done, pages will render with data ready
+          setLoading(false) // Mark loading done, pages will render
         } else {
           console.log('ℹ️ No session found')
           setLoading(false)
@@ -159,7 +165,24 @@ export function UserProvider({ children }) {
           console.log('🔄 Auth state changed, loading user data for ID:', session.user.id)
           setUser(session.user)
           
-          // CHECK profile existence BEFORE marking loading done
+          // Load data BEFORE showing dashboard (blocking wait) - WITH TIMEOUT
+          try {
+            const loadPromise = Promise.all([
+              ensureUserProfile(session.user),
+              loadUserPlans(session.user.id),
+            ])
+            // Max 5 second timeout for data loading
+            const timeoutPromise = new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('Data load timeout')), 5000)
+            )
+            await Promise.race([loadPromise, timeoutPromise])
+            console.log('✅ All data loaded successfully')
+          } catch (err) {
+            console.warn('⚠️ Data load error/timeout (continuing):', err?.message)
+            // Continue anyway - don't block render
+          }
+
+          // Check profile existence for pending flag (ASYNC, doesn't block)
           try {
             const { data: profileData, error: pErr } = await supabase
               .from('profiles')
@@ -175,22 +198,11 @@ export function UserProvider({ children }) {
               console.log('✅ Profile exists for user ID:', session.user.id)
             }
           } catch (e) {
-            console.debug('Could not check profile existence:', e)
+            console.debug('Could not check profile existence:', e?.message)
             sessionStorage.removeItem('pending_profile_creation')
           }
           
           setLoading(false) // NOW mark loading done, pages will redirect correctly
-          
-          // Load data in background
-          try {
-            await Promise.all([
-              ensureUserProfile(session.user),
-              loadUserPlans(session.user.id),
-            ])
-            console.log('✅ All data reloaded successfully')
-          } catch (err) {
-            console.error('Error reloading data:', err)
-          }
         } else {
           console.log('ℹ️ User signed out')
           setUser(null)
@@ -858,11 +870,29 @@ export function UserProvider({ children }) {
         'Authorization': `Bearer ${apiKey}`
       }
 
-      const res = await fetch(fetchUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
-      })
+      // Fetch with 10-second timeout
+      let res
+      try {
+        const fetchPromise = fetch(fetchUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+        })
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Groq API request timeout (10s)')), 10000)
+        )
+        res = await Promise.race([fetchPromise, timeoutPromise])
+      } catch (fetchErr) {
+        console.error('❌ Groq API request failed:', fetchErr?.message)
+        const assistantContent = `Qwixy request failed: ${fetchErr?.message || 'Unknown error'}`
+        try {
+          const newMessages = [...contextMessages, { role: 'assistant', content: assistantContent }].slice(-10)
+          await saveAssistantConversation(newMessages)
+        } catch (e) {
+          console.debug('Could not persist error reply:', e?.message || e)
+        }
+        return assistantContent
+      }
 
       if (!res.ok) {
         const text = await res.text().catch(() => '')
