@@ -123,6 +123,11 @@ export function UserProvider({ children }) {
             console.log('✅ All data loaded successfully')
           } catch (err) {
             console.warn('⚠️ Data load error/timeout (continuing):', err?.message)
+            if (!userProfile && session?.user) {
+              const fallbackProfile = getProfileFromAuthUser(session.user)
+              setUserProfile(fallbackProfile)
+            }
+            setUserPlans((prev) => prev || [])
             // Continue anyway - don't block render
           }
 
@@ -179,6 +184,11 @@ export function UserProvider({ children }) {
             console.log('✅ All data loaded successfully')
           } catch (err) {
             console.warn('⚠️ Data load error/timeout (continuing):', err?.message)
+            if (!userProfile && session?.user) {
+              const fallbackProfile = getProfileFromAuthUser(session.user)
+              setUserProfile(fallbackProfile)
+            }
+            setUserPlans((prev) => prev || [])
             // Continue anyway - don't block render
           }
 
@@ -244,7 +254,7 @@ export function UserProvider({ children }) {
         if (error.message?.includes('permission') || error.message?.includes('denied')) {
           console.warn('⚠️ Permission denied - ensure RLS policies are set up in Supabase SQL Editor')
         }
-        // Preserve current UI list if reload fails so tasks don't disappear.
+        setUserPlans([])
         return { data: [], error }
       }
 
@@ -416,10 +426,8 @@ export function UserProvider({ children }) {
     try {
       console.log('Starting Google OAuth with Supabase...')
       try {
-        const projectRef = new URL(supabaseUrl).hostname.split('.')[0]
-        const codeVerifierKey = `sb-${projectRef}-auth-token-code-verifier`
-        localStorage.removeItem(codeVerifierKey)
-        sessionStorage.removeItem(codeVerifierKey)
+        localStorage.removeItem('sb-auth-token-code-verifier')
+        sessionStorage.removeItem('sb-auth-token-code-verifier')
       } catch {
         // Best effort cleanup only.
       }
