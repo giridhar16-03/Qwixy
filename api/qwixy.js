@@ -16,6 +16,13 @@ export default async function handler(req, res) {
     })
 
     const text = await r.text()
+    if (r.status === 401) {
+      return res.status(401).json({
+        error: 'Invalid API key configured for Qwixy assistant',
+        details: text,
+      })
+    }
+
     res.status(r.status).send(text)
   } catch (err) {
     console.error('Error in /api/qwixy:', err)

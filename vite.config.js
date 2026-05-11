@@ -6,6 +6,8 @@ import tailwindcss from '@tailwindcss/vite'
 export default ({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const qwixyUrl = env.VITE_QWIXY_API_URL || ''
+  const qwixyKey = env.VITE_QWIXY_API_KEY || ''
+  const isVercel = process.env.VERCEL === '1' || process.env.VERCEL === 'true'
 
   const proxy = {}
   if (qwixyUrl) {
@@ -17,6 +19,7 @@ export default ({ mode }) => {
         target: origin,
         changeOrigin: true,
         secure: false,
+        headers: qwixyKey ? { Authorization: `Bearer ${qwixyKey}` } : undefined,
         rewrite: (path) => path.replace(/^\/api\/qwixy/, basePath),
       }
     } catch (e) {
@@ -25,13 +28,14 @@ export default ({ mode }) => {
         target: qwixyUrl,
         changeOrigin: true,
         secure: false,
+        headers: qwixyKey ? { Authorization: `Bearer ${qwixyKey}` } : undefined,
         rewrite: (path) => path.replace(/^\/api\/qwixy/, ''),
       }
     }
   }
 
   return defineConfig({
-    base: '/Qwixy/',
+    base: isVercel ? '/' : (env.VITE_BASE || '/'),
     plugins: [react(), tailwindcss()],
     server: {
       port: Number(env.VITE_PORT) || 5173,

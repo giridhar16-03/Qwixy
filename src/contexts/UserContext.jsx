@@ -844,6 +844,12 @@ export function UserProvider({ children }) {
         return assistantContent
       }
 
+      if (res.status === 401) {
+        const assistantContent = 'Qwixy is configured with an invalid API key locally. Update VITE_QWIXY_API_KEY in .env, restart the dev server, and try again.'
+        try { await saveAssistantConversation([...contextMessages, { role: 'assistant', content: assistantContent }].slice(-10)) } catch (e) { console.debug('Could not persist auth-failure reply:', e?.message || e) }
+        return assistantContent
+      }
+
       let json = null
       try {
         json = await res.json()
