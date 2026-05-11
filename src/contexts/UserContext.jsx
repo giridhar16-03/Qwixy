@@ -350,6 +350,14 @@ export function UserProvider({ children }) {
   const signInWithGoogle = async (redirectPath = '/dashboard') => {
     try {
       console.log('Starting Google OAuth with Supabase...')
+      try {
+        const projectRef = new URL(supabaseUrl).hostname.split('.')[0]
+        const codeVerifierKey = `sb-${projectRef}-auth-token-code-verifier`
+        localStorage.removeItem(codeVerifierKey)
+        sessionStorage.removeItem(codeVerifierKey)
+      } catch {
+        // Best effort cleanup only.
+      }
       localStorage.setItem('oauth_intent_path', redirectPath)
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',

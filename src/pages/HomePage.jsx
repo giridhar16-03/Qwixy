@@ -1,4 +1,6 @@
+import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Brain, ChartNoAxesColumn, CheckSquare, Clock3, Sparkles } from 'lucide-react'
 import { useUser } from '../contexts/UserContext'
@@ -12,6 +14,27 @@ const icons = [Brain, CheckSquare, Clock3, ChartNoAxesColumn, Sparkles]
 
 function HomePage() {
   const { user, userProfile } = useUser()
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  useEffect(() => {
+    const query = new URLSearchParams(location.search)
+    const errorCode = query.get('error_code')
+
+    if (errorCode === 'flow_state_already_used') {
+      navigate('/login', {
+        replace: true,
+        state: { info: 'Sign in session expired. Please try Google login again.' },
+      })
+      return
+    }
+
+    if (!user) return
+
+    const isProfileComplete = userProfile?.isProfileComplete ?? Boolean(user.user_metadata?.isProfileComplete)
+    navigate(isProfileComplete ? '/dashboard' : '/profile-setup', { replace: true })
+  }, [location.search, navigate, user, userProfile])
+
   return (
     <div className="min-h-screen bg-grid-pattern">
       <Navbar />
