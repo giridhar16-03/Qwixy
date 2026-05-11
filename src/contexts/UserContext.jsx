@@ -108,7 +108,28 @@ export function UserProvider({ children }) {
         if (session?.user) {
           console.log('🔄 Session found, loading user data for ID:', session.user.id)
           setUser(session.user)
-          setLoading(false) // Show dashboard immediately
+          
+          // CHECK profile existence BEFORE marking loading done, to avoid redirect race
+          try {
+            const { data: profileData, error: pErr } = await supabase
+              .from('profiles')
+              .select('id, is_profile_complete')
+              .eq('id', session.user.id)
+              .maybeSingle()
+
+            if (!pErr && !profileData) {
+              sessionStorage.setItem('pending_profile_creation', '1')
+              console.log('⏳ Profile pending creation for user ID:', session.user.id)
+            } else {
+              sessionStorage.removeItem('pending_profile_creation')
+              console.log('✅ Profile exists for user ID:', session.user.id)
+            }
+          } catch (e) {
+            console.debug('Could not check profile existence:', e)
+            sessionStorage.removeItem('pending_profile_creation')
+          }
+          
+          setLoading(false) // NOW mark loading done, pages will redirect correctly
           
           // Load data in background (don't wait for this)
           Promise.all([
@@ -119,24 +140,6 @@ export function UserProvider({ children }) {
           }).catch(err => {
             console.error('Error loading data in background:', err)
           })
-          // If profile does not exist in DB yet, mark pendingProfileCreation
-          // so UI can route to profile-setup after redirect.
-          try {
-            const { data: profileData, error: pErr } = await supabase
-              .from('profiles')
-              .select('id, is_profile_complete')
-              .eq('id', session.user.id)
-              .maybeSingle()
-
-            if (!pErr && !profileData) {
-              // No profile row yet - set a flag in sessionStorage so pages can route accordingly
-              sessionStorage.setItem('pending_profile_creation', '1')
-            } else {
-              sessionStorage.removeItem('pending_profile_creation')
-            }
-          } catch (e) {
-            console.debug('Could not check profile existence:', e)
-          }
         } else {
           console.log('ℹ️ No session found')
           setLoading(false)
@@ -154,7 +157,28 @@ export function UserProvider({ children }) {
         if (session?.user) {
           console.log('🔄 Auth state changed, loading user data for ID:', session.user.id)
           setUser(session.user)
-          setLoading(false) // Show dashboard immediately
+          
+          // CHECK profile existence BEFORE marking loading done
+          try {
+            const { data: profileData, error: pErr } = await supabase
+              .from('profiles')
+              .select('id, is_profile_complete')
+              .eq('id', session.user.id)
+              .maybeSingle()
+
+            if (!pErr && !profileData) {
+              sessionStorage.setItem('pending_profile_creation', '1')
+              console.log('⏳ Profile pending creation for user ID:', session.user.id)
+            } else {
+              sessionStorage.removeItem('pending_profile_creation')
+              console.log('✅ Profile exists for user ID:', session.user.id)
+            }
+          } catch (e) {
+            console.debug('Could not check profile existence:', e)
+            sessionStorage.removeItem('pending_profile_creation')
+          }
+          
+          setLoading(false) // NOW mark loading done, pages will redirect correctly
           
           // Load data in background
           Promise.all([
@@ -165,22 +189,6 @@ export function UserProvider({ children }) {
           }).catch(err => {
             console.error('Error loading data in background:', err)
           })
-          // Update pending_profile_creation flag as above
-          try {
-            const { data: profileData, error: pErr } = await supabase
-              .from('profiles')
-              .select('id, is_profile_complete')
-              .eq('id', session.user.id)
-              .maybeSingle()
-
-            if (!pErr && !profileData) {
-              sessionStorage.setItem('pending_profile_creation', '1')
-            } else {
-              sessionStorage.removeItem('pending_profile_creation')
-            }
-          } catch (e) {
-            console.debug('Could not check profile existence:', e)
-          }
         } else {
           console.log('ℹ️ User signed out')
           setUser(null)
