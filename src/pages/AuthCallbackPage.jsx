@@ -1,44 +1,20 @@
 import { useEffect, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useUser } from '../contexts/UserContext'
-import { supabase } from '../lib/supabase'
 
 function AuthCallbackPage() {
   const navigate = useNavigate()
-  const location = useLocation()
   const { user, userProfile, loading } = useUser()
-  const [processing, setProcessing] = useState(true)
-  const [authError, setAuthError] = useState('')
+  const [intentPath, setIntentPath] = useState('/dashboard')
 
   useEffect(() => {
-    const processCallback = async () => {
-      try {
-        const params = new URLSearchParams(location.search)
-        const code = params.get('code')
-
-        if (code) {
-          const { error } = await supabase.auth.exchangeCodeForSession(code)
-          if (error) {
-            setAuthError(error.message || 'Failed to complete sign in.')
-          }
-        }
-      } catch (error) {
-        setAuthError(error.message || 'Failed to complete sign in.')
-      } finally {
-        setProcessing(false)
-      }
-    }
-
-    processCallback()
-  }, [location.search])
+    const storedIntent = localStorage.getItem('oauth_intent_path') || '/dashboard'
+    localStorage.removeItem('oauth_intent_path')
+    setIntentPath(storedIntent)
+  }, [])
 
   useEffect(() => {
-    if (processing || loading) return
-
-    if (authError) {
-      navigate('/login', { replace: true, state: { info: authError } })
-      return
-    }
+    if (loading) return
 
     if (!user) {
       navigate('/login', { replace: true, state: { info: 'Sign in did not complete. Please try again.' } })
@@ -46,8 +22,13 @@ function AuthCallbackPage() {
     }
 
     const isProfileComplete = userProfile?.isProfileComplete ?? Boolean(user.user_metadata?.isProfileComplete)
+    if (intentPath === '/profile-setup' && !isProfileComplete) {
+      navigate('/profile-setup', { replace: true })
+      return
+    }
+
     navigate(isProfileComplete ? '/dashboard' : '/profile-setup', { replace: true })
-  }, [authError, loading, navigate, processing, user, userProfile])
+  }, [intentPath, loading, navigate, user, userProfile])
 
   return <div>Completing sign in...</div>
 }
