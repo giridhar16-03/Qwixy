@@ -350,10 +350,11 @@ export function UserProvider({ children }) {
   const signInWithGoogle = async (redirectPath = '/dashboard') => {
     try {
       console.log('Starting Google OAuth with Supabase...')
+      const nextPath = encodeURIComponent(redirectPath)
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}${redirectPath}`,
+          redirectTo: `${window.location.origin}/auth/callback?next=${nextPath}`,
         },
       })
       if (error) {

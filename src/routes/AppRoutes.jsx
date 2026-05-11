@@ -5,6 +5,7 @@ import LoginPage from '../pages/LoginPage'
 import SignupPage from '../pages/SignupPage'
 import ProfileSetupPage from '../pages/ProfileSetupPage'
 import OnboardingPage from '../pages/OnboardingPage'
+import AuthCallbackPage from '../pages/AuthCallbackPage'
 import CalendarPage from '../pages/CalendarPage'
 import AssistantPage from '../pages/AssistantPage'
 import PlannerPage from '../pages/PlannerPage'
@@ -18,6 +19,7 @@ function AppRoutes() {
       <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
+      <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route path="/profile-setup" element={<ProfileSetupPage />} />
       <Route path="/onboarding" element={<OnboardingPage />} />
       <Route path="/dashboard" element={<DashboardPage />} />
