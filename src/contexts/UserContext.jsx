@@ -129,17 +129,18 @@ export function UserProvider({ children }) {
             sessionStorage.removeItem('pending_profile_creation')
           }
           
-          setLoading(false) // NOW mark loading done, pages will redirect correctly
-          
-          // Load data in background (don't wait for this)
-          Promise.all([
-            ensureUserProfile(session.user),
-            loadUserPlans(session.user.id),
-          ]).then(() => {
+          // Load data BEFORE showing dashboard (blocking wait)
+          try {
+            await Promise.all([
+              ensureUserProfile(session.user),
+              loadUserPlans(session.user.id),
+            ])
             console.log('✅ All data loaded successfully')
-          }).catch(err => {
-            console.error('Error loading data in background:', err)
-          })
+          } catch (err) {
+            console.error('Error loading data:', err)
+          }
+          
+          setLoading(false) // NOW mark loading done, pages will render with data ready
         } else {
           console.log('ℹ️ No session found')
           setLoading(false)
@@ -181,14 +182,15 @@ export function UserProvider({ children }) {
           setLoading(false) // NOW mark loading done, pages will redirect correctly
           
           // Load data in background
-          Promise.all([
-            ensureUserProfile(session.user),
-            loadUserPlans(session.user.id),
-          ]).then(() => {
-            console.log('✅ All data loaded successfully')
-          }).catch(err => {
-            console.error('Error loading data in background:', err)
-          })
+          try {
+            await Promise.all([
+              ensureUserProfile(session.user),
+              loadUserPlans(session.user.id),
+            ])
+            console.log('✅ All data reloaded successfully')
+          } catch (err) {
+            console.error('Error reloading data:', err)
+          }
         } else {
           console.log('ℹ️ User signed out')
           setUser(null)
@@ -827,21 +829,18 @@ export function UserProvider({ children }) {
     const apiKey = import.meta.env.VITE_QWIXY_API_KEY || ''
     const model = import.meta.env.VITE_QWIXY_MODEL || 'llama-3.3-70b-versatile'
 
-    // Determine endpoint: in production we call our serverless proxy at /api/qwixy
-    const isProd = import.meta.env.PROD
-    const useDevProxy = import.meta.env.DEV && !!import.meta.env.VITE_QWIXY_API_URL
-    const fetchUrl = isProd || useDevProxy ? '/api/qwixy' : apiUrl
+    // In production, use direct Groq API (not proxy)
+    const fetchUrl = apiUrl
 
-    // If no API configured for non-proxy mode, show fallback
-    if (!fetchUrl || (!isProd && !apiUrl)) {
-      console.warn('⚠️ Qwixy API not configured; returning local fallback reply for faster testing')
-      const assistantContent = `Qwixy is not configured locally. I can still see ${userPlans.length} saved task(s), but to get live task-aware suggestions, set VITE_QWIXY_API_URL and VITE_QWIXY_API_KEY in your .env file.`
-      // Try to save the placeholder reply so the UI shows history when possible, but ignore DB errors
-      const newMessages = [...contextMessages, { role: 'assistant', content: assistantContent }].slice(-10)
+    // If no API configured, show fallback
+    if (!fetchUrl || !apiKey) {
+      console.warn('⚠️ Qwixy API not configured; returning local fallback')
+      const assistantContent = `Qwixy is not configured. I can still see ${userPlans.length} saved task(s), but to get live suggestions, set VITE_QWIXY_API_URL and VITE_QWIXY_API_KEY in .env`
       try {
+        const newMessages = [...contextMessages, { role: 'assistant', content: assistantContent }].slice(-10)
         await saveAssistantConversation(newMessages)
       } catch (e) {
-        console.debug('Could not persist assistant placeholder reply:', e?.message || e)
+        console.debug('Could not persist assistant reply:', e?.message || e)
       }
       return assistantContent
     }
@@ -852,61 +851,29 @@ export function UserProvider({ children }) {
         model,
       }
 
-      console.log('📨 Sending to Qwixy API', { apiUrl, model, messagesCount: contextMessages.length })
+      console.log('📨 Sending to Groq API', { model, messagesCount: contextMessages.length })
 
-      // Retry on 5xx errors (transient gateway issues) with simple exponential backoff
-      let res = null
-      const maxRetries = 2
-      let attempt = 0
-      while (attempt <= maxRetries) {
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      }
+
+      const res = await fetch(fetchUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      })
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => '')
+        console.error('❌ Qwixy API error:', res.status, text)
+        const assistantContent = `Qwixy API error ${res.status}: ${text || res.statusText}`
         try {
-          // If calling the direct API URL (not proxy), include Authorization header.
-          const headers = { 'Content-Type': 'application/json' }
-          if (fetchUrl === apiUrl && apiKey) headers.Authorization = `Bearer ${apiKey}`
-
-          res = await fetch(fetchUrl, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(body),
-          })
-        } catch (fetchErr) {
-          console.error('❌ Network error calling Qwixy API:', fetchErr)
-          let assistantContent = `Failed to call Qwixy API: ${fetchErr.message || fetchErr}`
-          if ((fetchErr.message || '').toLowerCase().includes('failed to fetch')) {
-            assistantContent += ' — this is often a CORS or network issue. In development enable the Vite proxy by setting VITE_QWIXY_API_URL in your .env and restarting the dev server, or ensure the target allows CORS.'
-          }
-          try { await saveAssistantConversation([...contextMessages, { role: 'assistant', content: assistantContent }].slice(-10)) } catch (e) { console.debug('Could not persist network-failure reply:', e?.message || e) }
-          return assistantContent
+          const newMessages = [...contextMessages, { role: 'assistant', content: assistantContent }].slice(-10)
+          await saveAssistantConversation(newMessages)
+        } catch (e) {
+          console.debug('Could not persist error reply:', e?.message || e)
         }
-
-        // If server error (5xx), retry a few times
-        if (res && res.status >= 500 && res.status < 600 && attempt < maxRetries) {
-          const waitMs = 400 * Math.pow(2, attempt) // 400ms, 800ms, ...
-          console.warn(`⚠️ Qwixy API returned ${res.status}. Retrying in ${waitMs}ms (attempt ${attempt + 1})`)
-          await new Promise((r) => setTimeout(r, waitMs))
-          attempt++
-          continue
-        }
-
-        break
-      }
-
-      if (!res) {
-        const assistantContent = 'Qwixy API call failed with no response.'
-        try { await saveAssistantConversation([...contextMessages, { role: 'assistant', content: assistantContent }].slice(-10)) } catch (e) { console.debug('Could not persist no-response reply:', e?.message || e) }
-        return assistantContent
-      }
-
-      if (!res.ok && res.status >= 500) {
-        const text = await res.text().catch(() => null)
-        const assistantContent = `Qwixy API error ${res.status} after ${attempt + 1} attempts: ${text || res.statusText}`
-        try { await saveAssistantConversation([...contextMessages, { role: 'assistant', content: assistantContent }].slice(-10)) } catch (e) { console.debug('Could not persist server-error reply:', e?.message || e) }
-        return assistantContent
-      }
-
-      if (res.status === 401) {
-        const assistantContent = 'Qwixy is configured with an invalid API key locally. Update VITE_QWIXY_API_KEY in .env, restart the dev server, and try again.'
-        try { await saveAssistantConversation([...contextMessages, { role: 'assistant', content: assistantContent }].slice(-10)) } catch (e) { console.debug('Could not persist auth-failure reply:', e?.message || e) }
         return assistantContent
       }
 
@@ -914,25 +881,24 @@ export function UserProvider({ children }) {
       try {
         json = await res.json()
       } catch (parseErr) {
-        const text = await res.text().catch(() => null)
-        console.warn('⚠️ Qwixy returned non-JSON response', { status: res.status, statusText: res.statusText, text })
-        if (!res.ok) {
-          const assistantContent = `Qwixy API error ${res.status}: ${text || res.statusText}`
-          try { await saveAssistantConversation([...contextMessages, { role: 'assistant', content: assistantContent }].slice(-10)) } catch (e) { console.debug('Could not persist non-JSON reply:', e?.message || e) }
-          return assistantContent
+        console.error('⚠️ Could not parse Qwixy response:', parseErr)
+        const assistantContent = 'Qwixy returned invalid response'
+        try {
+          const newMessages = [...contextMessages, { role: 'assistant', content: assistantContent }].slice(-10)
+          await saveAssistantConversation(newMessages)
+        } catch (e) {
+          console.debug('Could not persist parse-error reply:', e?.message || e)
         }
-        // fallback to using raw text if parse failed
-        json = { text: text || null }
+        return assistantContent
       }
 
       console.log('📥 Qwixy API response:', json)
 
-      // Extract assistant content from common places
+      // Extract assistant content from Groq API response
       let assistantContent = null
       if (json?.choices && Array.isArray(json.choices) && json.choices[0]?.message?.content) {
         assistantContent = json.choices[0].message.content
       } else if (json?.output && Array.isArray(json.output) && json.output[0]?.content) {
-        // some APIs use output array
         const c = json.output[0].content
         if (typeof c === 'string') assistantContent = c
         else if (Array.isArray(c) && c[0]?.text) assistantContent = c[0].text
@@ -945,7 +911,7 @@ export function UserProvider({ children }) {
         assistantContent = JSON.stringify(json)
       }
 
-      // Append assistant reply and save back to DB (keep last 10)
+      // Save assistant reply to DB
       const newMessages = [...contextMessages, { role: 'assistant', content: assistantContent }].slice(-10)
       await saveAssistantConversation(newMessages)
 
