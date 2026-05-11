@@ -16,7 +16,14 @@ function LoginPage() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      navigate('/dashboard', { replace: true })
+      const isProfileComplete = user?.user_metadata?.isProfileComplete
+      const pending = sessionStorage.getItem('pending_profile_creation') === '1'
+      // Prefer stored DB profile completeness when available via userProfile, otherwise fallback
+      if (pending || !isProfileComplete) {
+        navigate('/profile-setup', { replace: true })
+      } else {
+        navigate('/dashboard', { replace: true })
+      }
     }
   }, [authLoading, navigate, user])
 
@@ -48,7 +55,8 @@ function LoginPage() {
       if (error) {
         setErrors({ general: error.message })
       } else {
-        navigate('/dashboard')
+        const pending = sessionStorage.getItem('pending_profile_creation') === '1'
+        navigate(pending ? '/profile-setup' : '/dashboard')
       }
     }
   }

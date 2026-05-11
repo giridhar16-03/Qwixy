@@ -15,7 +15,8 @@ function SignupPage() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      navigate('/dashboard', { replace: true })
+      const pending = sessionStorage.getItem('pending_profile_creation') === '1'
+      navigate(pending ? '/profile-setup' : '/dashboard', { replace: true })
     }
   }, [authLoading, navigate, user])
 
@@ -85,8 +86,10 @@ function SignupPage() {
           : error?.message || 'Signup failed'
         setErrors({ general: rateLimitMessage })
       } else if (data?.session) {
-        navigate('/profile-setup')
+        // If session created immediately, route through auth callback flow
+        navigate('/auth/callback', { replace: true })
       } else {
+        // No session (email verification required) — send user to login with info
         navigate('/login', {
           state: {
             info: 'Account created. Please verify your email if required, then log in to continue.',

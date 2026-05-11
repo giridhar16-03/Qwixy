@@ -21,13 +21,15 @@ function AuthCallbackPage() {
       return
     }
 
+    const pending = sessionStorage.getItem('pending_profile_creation') === '1'
     const isProfileComplete = userProfile?.isProfileComplete ?? Boolean(user.user_metadata?.isProfileComplete)
-    if (intentPath === '/profile-setup' && !isProfileComplete) {
+
+    if (intentPath === '/profile-setup' || pending || !isProfileComplete) {
       navigate('/profile-setup', { replace: true })
       return
     }
 
-    navigate(isProfileComplete ? '/dashboard' : '/profile-setup', { replace: true })
+    navigate('/dashboard', { replace: true })
   }, [intentPath, loading, navigate, user, userProfile])
 
   return <div>Completing sign in...</div>

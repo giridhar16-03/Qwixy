@@ -119,6 +119,24 @@ export function UserProvider({ children }) {
           }).catch(err => {
             console.error('Error loading data in background:', err)
           })
+          // If profile does not exist in DB yet, mark pendingProfileCreation
+          // so UI can route to profile-setup after redirect.
+          try {
+            const { data: profileData, error: pErr } = await supabase
+              .from('profiles')
+              .select('id, is_profile_complete')
+              .eq('id', session.user.id)
+              .maybeSingle()
+
+            if (!pErr && !profileData) {
+              // No profile row yet - set a flag in sessionStorage so pages can route accordingly
+              sessionStorage.setItem('pending_profile_creation', '1')
+            } else {
+              sessionStorage.removeItem('pending_profile_creation')
+            }
+          } catch (e) {
+            console.debug('Could not check profile existence:', e)
+          }
         } else {
           console.log('ℹ️ No session found')
           setLoading(false)
@@ -147,6 +165,22 @@ export function UserProvider({ children }) {
           }).catch(err => {
             console.error('Error loading data in background:', err)
           })
+          // Update pending_profile_creation flag as above
+          try {
+            const { data: profileData, error: pErr } = await supabase
+              .from('profiles')
+              .select('id, is_profile_complete')
+              .eq('id', session.user.id)
+              .maybeSingle()
+
+            if (!pErr && !profileData) {
+              sessionStorage.setItem('pending_profile_creation', '1')
+            } else {
+              sessionStorage.removeItem('pending_profile_creation')
+            }
+          } catch (e) {
+            console.debug('Could not check profile existence:', e)
+          }
         } else {
           console.log('ℹ️ User signed out')
           setUser(null)
@@ -223,8 +257,10 @@ export function UserProvider({ children }) {
       }
     }
 
-    // If signup succeeded, immediately create a profile record with the user's unique ID
-    if (!error && data?.user?.id) {
+    // If signup succeeded, only create a profile now if a session exists.
+    // When email confirmation is required Supabase may return a user but not a session,
+    // and anonymous DB writes will be rejected by RLS. Defer creation until session is established.
+    if (!error && data?.user?.id && data?.session) {
       const newProfilePayload = {
         id: data.user.id,
         email: email,
@@ -245,7 +281,8 @@ export function UserProvider({ children }) {
           console.error('Error creating profile during signup:', profileError)
         }
       } else {
-        console.log('✅ User ID stored in database:', data.user.id)
+        console.log('✅ User created in Auth (no immediate DB profile created).')
+        console.log('Profile creation deferred until auth session is active (email verification may be required).')
       }
     }
 
@@ -328,6 +365,12 @@ export function UserProvider({ children }) {
         }
 
     setUserProfile(nextProfile)
+    // Clear pending profile flag once the profile is persisted locally/DB
+    try {
+      sessionStorage.removeItem('pending_profile_creation')
+    } catch (e) {
+      /* ignore */
+    }
     return { data: nextProfile, error: null }
   }
 

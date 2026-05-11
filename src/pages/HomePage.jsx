@@ -31,8 +31,9 @@ function HomePage() {
 
     if (!user) return
 
+    const pending = sessionStorage.getItem('pending_profile_creation') === '1'
     const isProfileComplete = userProfile?.isProfileComplete ?? Boolean(user.user_metadata?.isProfileComplete)
-    navigate(isProfileComplete ? '/dashboard' : '/profile-setup', { replace: true })
+    navigate(pending || !isProfileComplete ? '/profile-setup' : '/dashboard', { replace: true })
   }, [location.search, navigate, user, userProfile])
 
   return (
