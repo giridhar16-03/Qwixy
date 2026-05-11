@@ -11,13 +11,13 @@ function SignupPage() {
   const [loading, setLoading] = useState(false)
   const [rateLimitCountdown, setRateLimitCountdown] = useState(0)
   const navigate = useNavigate()
-  const { signUp, rateLimitResetTime, signInWithGoogle, user, loading } = useUser()
+  const { signUp, rateLimitResetTime, signInWithGoogle, user, loading: authLoading } = useUser()
 
   useEffect(() => {
-    if (!loading && user) {
+    if (!authLoading && user) {
       navigate('/dashboard', { replace: true })
     }
-  }, [loading, navigate, user])
+  }, [authLoading, navigate, user])
 
   const handleGoogleSignUp = async () => {
     setLoading(true)

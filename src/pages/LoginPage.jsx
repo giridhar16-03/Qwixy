@@ -11,14 +11,14 @@ function LoginPage() {
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
-  const { signIn, signInWithGoogle, user, loading } = useUser()
+  const { signIn, signInWithGoogle, user, loading: authLoading } = useUser()
   const infoMessage = location.state?.info
 
   useEffect(() => {
-    if (!loading && user) {
+    if (!authLoading && user) {
       navigate('/dashboard', { replace: true })
     }
-  }, [loading, navigate, user])
+  }, [authLoading, navigate, user])
 
   const handleGoogleSignIn = async () => {
     setLoading(true)
