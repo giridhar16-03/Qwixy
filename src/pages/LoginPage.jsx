@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useUser } from '../contexts/UserContext'
 import Button from '../components/Button'
@@ -11,13 +11,19 @@ function LoginPage() {
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
-  const { signIn, signInWithGoogle } = useUser()
+  const { signIn, signInWithGoogle, user, loading } = useUser()
   const infoMessage = location.state?.info
+
+  useEffect(() => {
+    if (!loading && user) {
+      navigate('/dashboard', { replace: true })
+    }
+  }, [loading, navigate, user])
 
   const handleGoogleSignIn = async () => {
     setLoading(true)
     try {
-      const { error } = await signInWithGoogle()
+      const { error } = await signInWithGoogle('/dashboard')
       if (error) {
         console.error('Google signin error:', error)
         setErrors({ general: `Google signin failed: ${error.message || 'Unknown error'}` })

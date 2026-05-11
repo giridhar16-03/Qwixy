@@ -347,13 +347,13 @@ export function UserProvider({ children }) {
     }
   }
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (redirectPath = '/dashboard') => {
     try {
       console.log('Starting Google OAuth with Supabase...')
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/profile-setup`,
+          redirectTo: `${window.location.origin}${redirectPath}`,
         },
       })
       if (error) {

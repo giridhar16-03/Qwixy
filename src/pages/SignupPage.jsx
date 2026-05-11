@@ -11,12 +11,18 @@ function SignupPage() {
   const [loading, setLoading] = useState(false)
   const [rateLimitCountdown, setRateLimitCountdown] = useState(0)
   const navigate = useNavigate()
-  const { signUp, rateLimitResetTime, signInWithGoogle } = useUser()
+  const { signUp, rateLimitResetTime, signInWithGoogle, user, loading } = useUser()
+
+  useEffect(() => {
+    if (!loading && user) {
+      navigate('/dashboard', { replace: true })
+    }
+  }, [loading, navigate, user])
 
   const handleGoogleSignUp = async () => {
     setLoading(true)
     try {
-      const { error } = await signInWithGoogle()
+      const { error } = await signInWithGoogle('/profile-setup')
       if (error) {
         console.error('Google signup error:', error)
         setErrors({ general: `Google signup failed: ${error.message || 'Unknown error'}` })
