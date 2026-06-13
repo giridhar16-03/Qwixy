@@ -1,6 +1,7 @@
 # Qwixy Study Planner
 
 A React + Vite study planner app with Supabase authentication, calendar planning, analytics, and AI assistant integration.
+https://qwixy.vercel.app/
 
 <img width="1600" height="706" alt="image" src="https://github.com/user-attachments/assets/b32e1c56-3121-4c1f-8b9d-7a90d88a06c1" />
 <img width="1600" height="702" alt="image" src="https://github.com/user-attachments/assets/431f4c84-0144-442e-9094-13cb12011c23" />
